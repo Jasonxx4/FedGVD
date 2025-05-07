@@ -26,7 +26,6 @@ args.model = ["gcn","gat", "sgc","graphsage"] # choose multiple gnn models for m
 args.metrics = ["accuracy"]
 
 
-# 初始化客户端，分配数据集
 trainer = FGLTrainer(args)
 
 trainer.train()
