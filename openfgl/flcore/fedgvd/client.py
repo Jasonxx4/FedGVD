@@ -57,13 +57,12 @@ class Feddgc1Client(BaseClient):
                     f'{root}/saved_ours/label_{args.dataset}_{args.teacher_model}_{args.validation_model}_{args.reduction_rate}_{args.seed}_{self.client_id}.pt').detach().to(self.device)
             else:
                 feat_syn,adj_syn,labels_syn = data_gc(self.task.processed_data,self.client_id)
-            # 概率采样法（随机生成边）
-            # 根据概率值对每条边进行伯努利采样，保留采样成功的边。
-            random_matrix  = torch.rand(adj_syn.shape).to(self.device)  # 生成随机矩阵并与概率比较
+
+            random_matrix  = torch.rand(adj_syn.shape).to(self.device)  
             sampled_edges = (random_matrix <= adj_syn).float()
-            # 提取非零边索引（排除自环边）
+
             rows, cols = torch.where(sampled_edges != 0)
-            # 合并为 edge_index
+
             edge_index_syn = torch.stack([rows, cols], dim=0)
             self.message_pool["feat_syn"][self.client_id] = feat_syn
             self.message_pool["edge_index_syn"][self.client_id] = edge_index_syn
@@ -77,18 +76,18 @@ class Feddgc1Client(BaseClient):
             global_feat_syn, global_label_syn, global_edge_index_syn = self.cat_syn_data()
 
             self.task.processed_data['data']['x'] = torch.cat([
-                self.task.processed_data['data']['x'],  # 原始特征 [N, d]
-                self.feat_syn  # 合成特征 [M, d]
+                self.task.processed_data['data']['x'],
+                self.feat_syn 
             ])
             self.task.processed_data['data']['y'] = torch.cat([
-                self.task.processed_data['data']['y'],  # 原始标签 [N]
-                self.label_syn  # 合成标签 [M]
+                self.task.processed_data['data']['y'],
+                self.label_syn  
             ])
 
-            # 合并边索引（已偏移）
+            
             self.task.processed_data['data']['edge_index'] = torch.cat([
-                self.task.processed_data['data']['edge_index'],  # 原始边索引 [2, E_orig]
-                self.edge_index_syn  # 合成边索引 [2, E_syn]
+                self.task.processed_data['data']['edge_index'], 
+                self.edge_index_syn  
             ], dim=1)
             self.task.processed_data['train_mask'] = torch.cat([self.task.processed_data['train_mask'], torch.ones(self.feat_syn.shape[0], dtype=torch.bool).to(self.device)], dim=0)
             self.task.processed_data['val_mask'] = torch.cat([self.task.processed_data['val_mask'],
@@ -165,18 +164,15 @@ class Feddgc1Client(BaseClient):
         node_offset = 0
         all_edge_index_syn = []
         for i in range(len(edge_index_syn)):
-            # 获取当前客户端的边索引
+            
             edge_index = edge_index_syn[i]
 
-            # 对当前客户端的边索引进行偏移
             edge_index_offset = edge_index + node_offset
 
-            # 添加到全局边索引列表
             all_edge_index_syn.append(edge_index_offset)
 
-            # 更新节点偏移量：累加当前客户端的节点数
+            
             node_offset += feat_syn[i].shape[0]  # 或 clients_label[i].shape[0]
 
-        # 合并所有客户端的边索引
         global_edge_index_syn = torch.cat(all_edge_index_syn, dim=1)
         return global_feat_syn, global_label_syn, global_edge_index_syn
